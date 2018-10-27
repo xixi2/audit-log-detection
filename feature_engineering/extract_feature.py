@@ -2,11 +2,13 @@ import json
 import os
 import operator
 import time
+import subprocess
 
 ROOT_DIR = os.path.dirname(os.getcwd())
 TOP_DIR = 'learn_final_r1'
 SUB_DIR = 'inter'
 FEATURE_FILE = 'event_list.txt'
+FEATURE_UNIQUE_FILE = 'event_unique_list.txt'
 
 
 def generate_q_gram_event(continuous_list, q):
@@ -109,28 +111,54 @@ def extract_event_from_one_json_file(file_name):
     f = open(file_name, 'r')
     data = json.load(f)
     processes = data['Processes']  # processes是一个dict的列表，每个dict是一个进程的所有events
-    process_num = len(processes)
-    for i in range(process_num):
+    total_events_num = 0
+    for i in range(len(processes)):
         single_process_events = processes[i]['events']  # single_process_events是一个dict列表，每个dict是单个事件描述信息
-        event_num = len(single_process_events)
         origin_events_list = []  # 属于同一进程号的多个事件
-        for j in range(event_num):
+        for j in range(len(single_process_events)):
+            if single_process_events[j]['ignored'] == 'true':  # ignore=="true"的事件不参与特征筛选
+                continue
             temp = []
             temp.append(single_process_events[j]['time'])
             temp.append(single_process_events[j]['string_id'])
             origin_events_list.append(tuple(temp))
         events_of_one_pid = generate_events_of_one_pid(origin_events_list)
+        total_events_num += len(events_of_one_pid)
         write_events_to_file(events_of_one_pid)
     f.close()
+    return total_events_num
 
 
 def extract_events_from_all_json_file():
     file_path = os.path.join(ROOT_DIR, TOP_DIR, SUB_DIR)
     file_list = os.listdir(file_path)
+    events_total = 0
     for file in file_list:
         file_name = os.path.join(file_path, file)
         print('file_name:{0}'.format(file_name))
-        extract_event_from_one_json_file(file_name)
+        events_num = extract_event_from_one_json_file(file_name)
+        events_total += events_num
+    print('------------------------vents_total--------------------------')
+    print('events_total: {0}'.format(events_total))
+    print('------------------------vents_total--------------------------')
+
+
+def execute_system_command(command):
+    print('command: {0}'.format(command))
+    out_put = subprocess.check_output(command, shell=True)
+    return out_put
+
+
+def remove_duplicate_lines(source_file=FEATURE_FILE, dst_file=FEATURE_UNIQUE_FILE):
+    command = 'sort -u ' + source_file + '-->' + dst_file
+    execute_system_command(command)
+    print('successfully remove all duplicate lines!')
+
+
+def count_lines(file_name):
+    command = 'wc -l ' + file_name
+    output = execute_system_command(command)
+    print('{0}:{1}'.format(file_name, output))
 
 
 def testing():
@@ -148,7 +176,10 @@ def testing():
 if __name__ == '__main__':
     start = time.time()
     extract_events_from_all_json_file()
+    remove_duplicate_lines()
     end = time.time()
     secs = (end - start) / 60
+    count_lines(FEATURE_FILE)
+    count_lines(FEATURE_UNIQUE_FILE)
     print('start:{0}, end:{1}'.format(start, end))
     print('secs:{0}'.format(secs))
