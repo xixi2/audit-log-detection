@@ -53,10 +53,14 @@ def is_continuous_event(time_first, time_last):
 
 def split_event_list_into_continuous_list(event_list):
     """
-    :param event_list: 同一个进程号对应的多个事件
+    :param event_list: 同一个进程号对应的多个事件,这里要求event_list不为空
     :return:
         continuous_event_list：一个列表，其中每个元素也是一个列表，列表中的所有事件连续
     """
+    # print('----------split_event_list_into_continuous_list--------------')
+    # print('event_list: {0}'.format(event_list))
+    # print('len of event_list: {0}'.format(len(event_list)))
+
     continuous_event_list = []
     n = len(event_list)
     continuous_event_list.append([])
@@ -112,35 +116,48 @@ def extract_event_from_one_json_file(file_name):
     data = json.load(f)
     processes = data['Processes']  # processes是一个dict的列表，每个dict是一个进程的所有events
     total_events_num = 0
+    ignored_events_num = 0
+    events_of_one_json_file = []
     for i in range(len(processes)):
         single_process_events = processes[i]['events']  # single_process_events是一个dict列表，每个dict是单个事件描述信息
         origin_events_list = []  # 属于同一进程号的多个事件
+
         for j in range(len(single_process_events)):
-            if single_process_events[j]['ignored'] == 'true':  # ignore=="true"的事件不参与特征筛选
-                continue
-            temp = []
-            temp.append(single_process_events[j]['time'])
-            temp.append(single_process_events[j]['string_id'])
-            origin_events_list.append(tuple(temp))
-        events_of_one_pid = generate_events_of_one_pid(origin_events_list)
-        total_events_num += len(events_of_one_pid)
-        write_events_to_file(events_of_one_pid)
+            if single_process_events[j]['ignored'] is True:  # ignore is True代表该事件被忽略
+                ignored_events_num += 1
+            else:
+                timestamp = single_process_events[j]['time']
+                string_id = single_process_events[j]['string_id']
+                origin_events_list.append((timestamp, string_id))
+
+        if origin_events_list:
+            events_of_one_pid = generate_events_of_one_pid(origin_events_list)
+            total_events_num += len(events_of_one_pid)
+            # write_events_to_file(events_of_one_pid)
+            events_of_one_json_file.append(events_of_one_pid)
     f.close()
-    return total_events_num
+    return events_of_one_json_file, total_events_num, ignored_events_num
 
 
 def extract_events_from_all_json_file():
     file_path = os.path.join(ROOT_DIR, TOP_DIR, SUB_DIR)
     file_list = os.listdir(file_path)
     events_total = 0
+    ignored_total = 0
+    event_set = set([])
     for file in file_list:
         file_name = os.path.join(file_path, file)
         print('file_name:{0}'.format(file_name))
-        events_num = extract_event_from_one_json_file(file_name)
+        events_of_one_json_file, events_num, ignored_events_num = extract_event_from_one_json_file(file_name)
         events_total += events_num
-    print('------------------------vents_total--------------------------')
+        ignored_total += ignored_events_num
+        event_set = event_set | set(events_of_one_json_file)
+
+    write_events_to_file(list(event_set))
+    print('------------------------events_total--------------------------')
     print('events_total: {0}'.format(events_total))
-    print('------------------------vents_total--------------------------')
+    print('ignored_total: {0}'.format(ignored_total))
+    print('------------------------events_total--------------------------')
 
 
 def execute_system_command(command):
@@ -175,11 +192,12 @@ def testing():
 
 if __name__ == '__main__':
     start = time.time()
+    # testing()
     extract_events_from_all_json_file()
-    remove_duplicate_lines()
+    # remove_duplicate_lines()
     end = time.time()
     secs = (end - start) / 60
     count_lines(FEATURE_FILE)
-    count_lines(FEATURE_UNIQUE_FILE)
+    # count_lines(FEATURE_UNIQUE_FILE)
     print('start:{0}, end:{1}'.format(start, end))
     print('secs:{0}'.format(secs))
