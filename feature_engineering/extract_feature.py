@@ -102,7 +102,7 @@ def generate_events_of_one_pid(event_list):
     return events_of_one_pid
 
 
-def write_events_to_file(event_list, file_name):
+def write_events_to_file(event_list):
     f = open(FEATURE_FILE, 'a+')
     for item in event_list:
         for event in item:
@@ -122,7 +122,7 @@ def extract_event_from_one_json_file(file_name):
     data = json.load(f)
     processes = data['Processes']  # processes是一个dict的列表，每个dict是一个进程的所有events
     total_events_num = 0
-    # ignored_events_num = 0
+    ignored_events_num = 0
     events_of_one_json_file = []
     for i in range(len(processes)):
         single_process_events = processes[i]['events']  # single_process_events是一个dict列表，每个dict是单个事件描述信息
@@ -130,7 +130,7 @@ def extract_event_from_one_json_file(file_name):
 
         for j in range(len(single_process_events)):
             if single_process_events[j]['ignored'] is True:  # ignore is True代表该事件被忽略
-                # ignored_events_num += 1
+                ignored_events_num += 1
                 continue
             else:
                 timestamp = single_process_events[j]['time']
@@ -140,37 +140,28 @@ def extract_event_from_one_json_file(file_name):
         if origin_events_list:
             events_of_one_pid = generate_events_of_one_pid(origin_events_list)
             events_of_one_json_file.extend(events_of_one_pid)
-            # total_events_num += len(events_of_one_pid)
+            total_events_num += len(events_of_one_pid)
 
     f.close()
-    # return events_of_one_json_file, total_events_num, ignored_events_num
-    return events_of_one_json_file
+    return events_of_one_json_file, total_events_num, ignored_events_num
 
 
 def extract_events_from_all_json_file():
     file_path = os.path.join(ROOT_DIR, TOP_DIR, SUB_DIR)
     file_list = os.listdir(file_path)
-    # events_total = 0
-    unique_events_total = 0
-    # ignored_total = 0
-    batch_events_set = set([])
-    for i, file in enumerate(file_list):
+    events_total = 0
+    ignored_total = 0
+    for file in file_list:
         file_name = os.path.join(file_path, file)
         print('file_name:{0}'.format(file_name))
-        # events_of_one_json_file, events_num, ignored_events_num = extract_event_from_one_json_file(file_name)
-        events_of_one_json_file = extract_event_from_one_json_file(file_name)
-        # events_total += events_num
-        # ignored_total += ignored_events_num
-        batch_events_set = batch_events_set | set(events_of_one_json_file)
-        if i % 20 == 0 and i > 0:
-            file_name = FEATURE_FILE_PREFIX + str(i) + '.txt'
-            write_events_to_file(batch_events_set, file_name)
-            unique_events_total += len(batch_events_set)
-            batch_events_set = set([])
+        events_of_one_json_file, events_num, ignored_events_num = extract_event_from_one_json_file(file_name)
+        events_total += events_num
+        ignored_total += ignored_events_num
+        write_events_to_file(events_of_one_json_file)
 
     print('------------------------events_total--------------------------')
-    print('unique_events_total: {0}'.format(unique_events_total))
-    # print('ignored_total: {0}'.format(ignored_total))
+    print('events_total: {0}'.format(events_total))
+    print('ignored_total: {0}'.format(ignored_total))
     print('file_list: {0}'.format(len(file_list)))
     print('************************events_total**************************')
 
